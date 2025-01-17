@@ -4,7 +4,7 @@
 		{
 			"type": "cppbuild",
 			"label": "build dll",
-			"command": "D:\\mingw64\\bin\\g++.exe",
+			"command": "g++",
 			"args": [
 				"-fdiagnostics-color=always",
 				"-Wall",
@@ -24,12 +24,12 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"detail": "compiler: D:\\mingw64\\bin\\g++.exe"
+			"detail": "compiler: g++"
 		},
 		{
 			"type": "cppbuild",
 			"label": "build main",
-			"command": "D:\\mingw64\\bin\\g++.exe",
+			"command": "g++",
 			"args": [
 				"-fdiagnostics-color=always",
 				"-Wall",
@@ -48,7 +48,7 @@
 				"$gcc"
 			],
 			"group": "build",
-			"detail": "compiler: D:\\mingw64\\bin\\g++.exe"
+			"detail": "compiler: g++"
 		},
 		{
 			"label": "build all",

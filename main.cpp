@@ -26,8 +26,9 @@ void check_and_reload_dll(game_dll* dll) {
     WIN32_FIND_DATAA find_data;
     HANDLE find = FindFirstFileA(file_name, &find_data);
     if (find == INVALID_HANDLE_VALUE) {
-        fprintf(stderr, "Error: failed to find dll\n");
-        assert(false);
+        // fprintf(stderr, "Error: failed to find dll\n");
+        // assert(false);
+        return;
     }
 
     bool changed = CompareFileTime(&dll->last_write_time, &find_data.ftLastWriteTime) != 0;
