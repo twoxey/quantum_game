@@ -1,2 +1,2 @@
-cpp -E -P shader\frag.glsl.src > shader\frag.glsl
-gcc -Wall -Wextra -o main main.c -lgdi32 -lopengl32 -lwinmm
+g++ -Wall -Wextra -shared -o dynamic.dll dynamic.cpp
+g++ -Wall -Wextra -o main main.cpp -lgdi32 -lopengl32 -lwinmm

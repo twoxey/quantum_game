@@ -1,0 +1,69 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "build dll",
+			"command": "D:\\mingw64\\bin\\g++.exe",
+			"args": [
+				"-fdiagnostics-color=always",
+				"-Wall",
+				"-Wextra",
+				"-shared",
+				"dynamic.cpp",
+				"-o",
+				"dynamic.dll"
+			],
+			"options": {
+				"cwd": "${cwd}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "compiler: D:\\mingw64\\bin\\g++.exe"
+		},
+		{
+			"type": "cppbuild",
+			"label": "build main",
+			"command": "D:\\mingw64\\bin\\g++.exe",
+			"args": [
+				"-fdiagnostics-color=always",
+				"-Wall",
+				"-Wextra",
+				"main.cpp",
+				"-o",
+				"main",
+				"-lgdi32",
+				"-lopengl32",
+				"-lwinmm"
+			],
+			"options": {
+				"cwd": "${cwd}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build",
+			"detail": "compiler: D:\\mingw64\\bin\\g++.exe"
+		},
+		{
+			"label": "build all",
+			"group": "build",
+			"dependsOn": [
+				"build dll",
+				"build main"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "run",
+			"type": "process",
+			"command":["main"],
+			"group": "build",
+		}
+	]
+}
