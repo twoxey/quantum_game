@@ -36,6 +36,7 @@ typedef union vec3 {
     struct { float r, g, b; };
     struct { float s, t, p; };
     vec2 xy;
+    vec2 st;
 } vec3;
 
 vec3 v3(float x, float y, float z) { return (vec3){{x, y, z}}; }
@@ -55,9 +56,12 @@ typedef union vec4 {
     struct { float x, y, z, w; };
     struct { float r, g, b, a; };
     struct { float s, t, p, q; };
-    vec2 xy;
+    struct { vec2 xy, zw; };
+    struct { vec2 st, pq; };
     vec3 xyz;
 } vec4;
+
+vec4 v4(float x, float y, float z, float w) { return (vec4){{x, y, z, w}}; }
 
 typedef union mat3 {
     float f[9];
@@ -133,6 +137,8 @@ vec2 operator - (vec2 a, vec2 b)  { return v2_sub(a, b); }
 vec2 operator * (float a, vec2 v) { return v2(a * v.x, a * v.y); }
 
 vec3 operator * (float a, vec3 v) { return v3(a * v.x, a * v.y, a * v.z); }
+
+vec4 v4(vec2 xy, vec2 zw) { return v4(xy.x, xy.y, zw.x, zw.y); }
 
 mat3 operator * (float a, mat3 m) {
     for (size_t i = 0; i < 9; ++i) m.f[i] *= a;

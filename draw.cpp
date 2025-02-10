@@ -1,4 +1,4 @@
-#include "utils.h"
+//#include "utils.h"
 
 rgba32 Color(float r, float g, float b, float a = 1);
 font* Font(const char* file_name, float size);
@@ -9,7 +9,9 @@ void draw_rect(float x, float y, float w, float h, rgba32 color);
 void draw_ellipse(float x, float y, float w, float h, rgba32 color);
 void draw_circle(float x, float y, float r, rgba32 color);
 void draw_line(float x0, float y0, float x1, float y1, float width, rgba32 color);
+void draw_arc(float x, float y, float r, float min_angel, float max_angle, float width, rgba32 color);
 void stroke_rect(float x, float y, float w, float h, float width, rgba32 color);
+void stroke_circle(float x, float y, float r, float width, rgba32 color);
 void draw_texture(float x, float y, float scale_factor, texture tex);
 void draw_text(const char* text, float x, float y, float size, rgba32 c, font* font);
 
@@ -27,7 +29,7 @@ bool point_in_rect(float x, float y, float min_x, float min_y, float max_x, floa
     return min_x < x && x < max_x && min_y < y && y < max_y;
 }
 
-extern "C" FN_draw_frame(draw_frame) {
+void draw_frame(float dt, int window_width, int window_height, game_inputs inputs) {
     reset_transform();
 
     draw_rect(0, 0, window_width, window_height, Color(0.3, 0.35, 0.3));
@@ -37,9 +39,9 @@ extern "C" FN_draw_frame(draw_frame) {
         y = window_height * 0.5;
     }
 
-    float size1 = 100;
+    float size1 = 200;
 
-    if (!selected && inputs.mouse_down && 
+    if (!selected && inputs.mouse_down &&
         point_in_rect(inputs.mouse_x, inputs.mouse_y,
                       x - size1 * 0.5, y - size1 * 0.5,
                       x + size1 * 0.5, y + size1 * 0.5)) {
@@ -54,9 +56,11 @@ extern "C" FN_draw_frame(draw_frame) {
         y = inputs.mouse_y;
     }
 
-    mat3 transform = m3_translation(x, y) * m3_rotation(2 * -a);
+    mat3 transform = m3_translation(x, y);// * m3_rotation(2 * -a);
     set_transform(transform);
-    draw_rect(-0.5 * size1, -0.5 * size1, size1, size1, Red);
+    // draw_rect(-0.5 * size1, -0.5 * size1, size1, size1, inputs.mouse_down ? Red : Color(1, 1, 1));
+    // stroke_rect(-0.5 * size1, -0.5 * size1, size1, size1, 100, inputs.mouse_down ? Red : Color(1, 1, 1));
+    draw_arc(0, 0, 100, 0, M_PI, 100, Color(1, 0, 0));
 
     a += dt * 0.5 * 2 * M_PI;
     float size2 = 50;
