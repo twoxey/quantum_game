@@ -1,9 +1,3 @@
-#define QUAD_rect    0
-#define QUAD_char    1
-#define QUAD_image   2
-#define QUAD_ellipse 3
-#define QUAD_arc     4
-
 struct quad_shader_program {
     GLuint program;
     GLuint u_screen_size;
@@ -13,24 +7,24 @@ struct quad_shader_program {
     GLuint vertex_buffer;
 };
 
-typedef struct quad_vertex_data {
+struct quad_vertex_data {
     vec2 uv;
     rgba32 color;
-} quad_vertex_data;
-typedef struct quad_instance_data {
+};
+struct quad_instance_data {
     mat3 transform;
     uint32_t type;
     uint32_t texture_id;
     vec4 params;
-} quad_instance_data;
-typedef struct quad_data_buffer {
+};
+struct quad_data_buffer {
     int quad_count;
     quad_instance_data instances[1024];
     quad_vertex_data vertices[ARRAY_LEN(((quad_data_buffer*)0)->instances)];
-} quad_data_buffer;
+};
 
-static quad_shader_program quad_program;
 static quad_data_buffer quad_data;
+static quad_shader_program quad_program;
 
 bool init_quad_program() {
     GLuint program = create_shader_program(
@@ -38,7 +32,6 @@ bool init_quad_program() {
 
         R"vertex_shader(
 
-        uniform int u_type;
         uniform vec2 u_screen_size;
         uniform mat3 u_transform;
 
@@ -76,29 +69,38 @@ bool init_quad_program() {
         void main() {
             out_color = frag_color;
             switch (u_type) {
-            case 1: // QUAD_char
-                out_color.a = texture(tex, frag_uv).r;
-                break;
-            case 2: // QUAD_image
-                out_color = texture(tex, frag_uv);
-                break;
-            case 3: // QUAD_ellipse
-                if (length(frag_uv - vec2(0.5)) > 0.5)
-                    out_color.a = 0;
-                break;
-            case 4: { // QUAD_arc
-                vec2 diff = frag_uv - vec2(0.5);
-                float dist = length(diff);
-                float angle = atan(diff.y, diff.x);
-                float min_d = u_params.x;
-                float max_d = u_params.y;
-                float min_a = u_params.z;
-                float max_a = u_params.w;
-                if (dist < min_d || dist > max_d
-                    ||angle < min_a || angle > max_a
-                    )
-                    out_color.a = 0;
-            } break;
+                case 0: { // QUAD_rect
+                } break;
+                case 1: // QUAD_char
+                    out_color.a = texture(tex, frag_uv).r;
+                    break;
+                case 2: // QUAD_image
+                    out_color = texture(tex, frag_uv);
+                    break;
+                case 3: // QUAD_ellipse
+                    if (length(frag_uv - vec2(0.5)) > 0.5)
+                        out_color.a = 0;
+                    break;
+                case 4: { // QUAD_arc
+                    float min_d = u_params.x;
+                    float max_d = u_params.y;
+                    vec2 diff = frag_uv - vec2(0.5);
+                    float dist = length(diff);
+                    if (dist < min_d || dist > max_d) {
+                        out_color.a = 0;
+                        return;
+                    }
+                    float min_a = u_params.z;
+                    float max_a = u_params.w;
+                    float angle = atan(diff.y, diff.x);
+                    bool in_range = false;
+                    if (min_a < max_a) in_range =   angle > min_a && angle < max_a;
+                    if (min_a > max_a) in_range = !(angle > max_a && angle < min_a);
+                    if (!in_range) {
+                        out_color.a = 0;
+                        return;
+                    }
+                } break;
             }
         }
 
@@ -137,9 +139,7 @@ bool init_quad_program() {
     return true;
 }
 
-void push_quad(uint32_t type, mat3 transform, uint32_t texture_id,
-               rgba32 c0, rgba32 c1, rgba32 c2, rgba32 c3,
-               vec4 params = v4(0, 0, 1, 1)) {
+FN_push_quad(push_quad) {
     quad_data_buffer* d = &quad_data;
     assert((size_t)d->quad_count < ARRAY_LEN(d->instances));
     quad_instance_data* inst = d->instances + d->quad_count;
@@ -148,14 +148,14 @@ void push_quad(uint32_t type, mat3 transform, uint32_t texture_id,
 
     inst->type = type;
     inst->texture_id = texture_id;
-    inst->transform = global_transform * transform;
+    inst->transform = transform;
+    inst->params = params;
 
-    vec2 uv0 = params.st;
-    vec2 uv1 = params.pq;
-    if (type == QUAD_arc) {
-        inst->params = params;
-        uv0 = v2(0);
-        uv1 = v2(1);
+    vec2 uv0 = v2(0);
+    vec2 uv1 = v2(1);
+    if (type == QUAD_char) {
+        uv0 = params.st;
+        uv1 = params.pq;
     }
     vertex[0] = {uv0, c0};
     vertex[1] = {v2(uv1.s, uv0.t), c1};
@@ -180,8 +180,8 @@ void flush_quads(int win_w, int win_h) {
         quad_instance_data* inst = d->instances + i;
         glUniformMatrix3fv(p->u_transform, 1, GL_TRUE, inst->transform.f);
         glUniform1i(p->u_type, inst->type);
-        vec4* v = &inst->params;
-        glUniform4f(p->u_params, v->x, v->y, v->z, v->w);
+        vec4 v = inst->params;
+        glUniform4f(p->u_params, v.x, v.y, v.z, v.w);
         glBindTexture(GL_TEXTURE_2D, inst->texture_id);
         glDrawArrays(GL_TRIANGLE_STRIP, i * 4, 4);
     }

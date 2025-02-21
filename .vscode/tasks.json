@@ -3,20 +3,9 @@
 	"tasks": [
 		{
 			"type": "cppbuild",
-			"label": "build dll",
-			"command": "g++",
-			"args": [
-				"-fdiagnostics-color=always",
-				"-Wall",
-				"-Wextra",
-				"-shared",
-				"dynamic.cpp",
-				"-o",
-				"dynamic.dll"
-			],
-			"options": {
-				"cwd": "${cwd}"
-			},
+			"label": "build",
+			"command": "build",
+			"args": [],
 			"problemMatcher": [
 				"$gcc"
 			],
@@ -24,46 +13,7 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"detail": "compiler: g++"
-		},
-		{
-			"type": "cppbuild",
-			"label": "build main",
-			"command": "g++",
-			"args": [
-				"-fdiagnostics-color=always",
-				"-Wall",
-				"-Wextra",
-				"main.cpp",
-				"-o",
-				"main",
-				"-lgdi32",
-				"-lopengl32",
-				"-lwinmm"
-			],
-			"options": {
-				"cwd": "${cwd}"
-			},
-			"problemMatcher": [
-				"$gcc"
-			],
-			"group": "build",
-			"detail": "compiler: g++"
-		},
-		{
-			"label": "build all",
-			"group": "build",
-			"dependsOn": [
-				"build dll",
-				"build main"
-			],
-			"problemMatcher": []
-		},
-		{
-			"label": "run",
-			"type": "process",
-			"command":["main"],
-			"group": "build",
+			"detail": "compiler: build"
 		}
 	]
 }

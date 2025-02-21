@@ -24,7 +24,7 @@ typedef struct {
 
 typedef struct Window Window;
 
-Window* create_window();
+Window* create_window(const char* window_name);
 void destroy_window(const Window* win);
 bool window_check_event(Window* win, Event* event);
 bool window_should_close(Window* win);
@@ -34,6 +34,7 @@ void window_swap_buffers(const Window* win);
 // a gl context should have been bound to the current thread with wglMakeCurrent()
 // before using this function.
 void load_gl_procs();
+void gl_swap_interval(int interval); // 1 to enable vsync, 0 to disable
 
 //
 // Implementation
@@ -43,6 +44,8 @@ void load_gl_procs();
 #include "windows.h"
 #include "GL/gl.h"
 #include "GL/glext.h"
+#include "GL/wgl.h"
+
 #include "assert.h"
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof*(a))
@@ -80,13 +83,19 @@ XXX(PFNGLVERTEXATTRIBDIVISORPROC,       glVertexAttribDivisor) \
 XXX(PFNGLDRAWARRAYSINSTANCEDPROC,       glDrawArraysInstanced) \
 // GL_PROCS
 
+#define WGL_PROCS \
+XXX(PFNWGLSWAPINTERVALEXTPROC, wglSwapIntervalEXT) \
+// WGL_PROCS
+
 #define XXX(type, name) type name = NULL;
 GL_PROCS
+WGL_PROCS
 #undef XXX
 
 void load_gl_procs() {
 #define XXX(type, name) assert(name = (type)(void*)wglGetProcAddress(#name));
 GL_PROCS
+WGL_PROCS
 #undef XXX
 }
 
@@ -108,7 +117,12 @@ struct Window {
     bool should_close;
 };
 
-Window* thread_create_window(const WNDCLASSA* opengl_window_class) {
+struct Thread_Create_Window_Params {
+    DWORD thread_id; // The thread that requested to create a window
+    const char* window_name;
+};
+
+Window* thread_create_window(const WNDCLASSA* opengl_window_class, struct Thread_Create_Window_Params* p) {
     Window* win = (Window*)malloc(sizeof(*win));
     assert(win);
     memset(win, 0, sizeof(*win));
@@ -116,7 +130,7 @@ Window* thread_create_window(const WNDCLASSA* opengl_window_class) {
     // Pass the Window struct through the create param to store it on the
     // window handle when it's first created. This is to make sure the pointer
     // is valid when the window proc is called.
-    HWND hwnd = CreateWindowA(opengl_window_class->lpszClassName, "OpenGL",
+    HWND hwnd = CreateWindowA(opengl_window_class->lpszClassName, p->window_name,
                               WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                               CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                               0, 0, 0, win);
@@ -197,9 +211,6 @@ LRESULT window_proc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) {
     return 0;
 }
 
-struct Thread_Create_Window_Params {
-    DWORD thread_id; // The thread that requested to create a window
-};
 #define THREAD_CREATE_WINDOW (WM_USER+100)
 #define THREAD_DESTROY_WINDOW (WM_USER+101)
 #define THREAD_WINDOW_CREATED (WM_USER+102)
@@ -217,7 +228,7 @@ DWORD create_window_thread_proc(LPVOID lpParameter) {
     // The thread starts when the first time create_window() gets called,
     // so we create a window first. If this succeeds, that means we have
     // initilized an OpenGL context, so we can load GL functions afterwards.
-    Window* win = thread_create_window(&wc);
+    Window* win = thread_create_window(&wc, p);
     assert(win);
     load_gl_procs();
     wglMakeCurrent(win->hdc, 0);
@@ -230,7 +241,7 @@ DWORD create_window_thread_proc(LPVOID lpParameter) {
             // New call of create_window()
             // wParam stores the paramerters for the call
             struct Thread_Create_Window_Params* p = (struct Thread_Create_Window_Params*)msg.wParam;
-            Window* win = thread_create_window(&wc);
+            Window* win = thread_create_window(&wc, p);
             assert(win);
             wglMakeCurrent(win->hdc, 0);
             PostThreadMessageA(p->thread_id, THREAD_WINDOW_CREATED, (WPARAM)win, 0);
@@ -288,9 +299,10 @@ DWORD create_window_thread_proc(LPVOID lpParameter) {
     return 0;
 }
 
-Window* create_window() {
+Window* create_window(const char* window_name) {
     struct Thread_Create_Window_Params params = {};
     params.thread_id = GetCurrentThreadId();
+    params.window_name = window_name;
 
     if (!create_window_thread_id) {
         HANDLE create_window_thread = CreateThread(0, 0, create_window_thread_proc, &params, 0, &create_window_thread_id);
@@ -318,4 +330,16 @@ void window_make_current(const Window* win) {
 
 void window_swap_buffers(const Window* win) {
     SwapBuffers(win->hdc);
+}
+
+void gl_swap_interval(int interval) {
+    // TODO: check extension, example:
+    //
+    // PFNWGLGETEXTENSIONSSTRINGARBPROC wglGetExtensionsStringARB = (PFNWGLGETEXTENSIONSSTRINGARBPROC)(void*)wglGetProcAddress("wglGetExtensionsStringARB");
+    // const char* wgl_extensions = wglGetExtensionsStringARB(win->hdc);
+    // printf("wgl extensions:\n%s\n", wgl_extensions);
+    // PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)(void*)wglGetProcAddress("wglSwapIntervalEXT");
+    // assert(wglSwapIntervalEXT);
+
+    wglSwapIntervalEXT(interval);
 }

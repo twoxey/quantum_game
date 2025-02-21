@@ -135,6 +135,7 @@ vec2 v2(float x) { return v2(x, x); }
 vec2 operator + (vec2 a, vec2 b)  { return v2_add(a, b); }
 vec2 operator - (vec2 a, vec2 b)  { return v2_sub(a, b); }
 vec2 operator * (float a, vec2 v) { return v2(a * v.x, a * v.y); }
+vec2 operator += (vec2 a, vec2 b) { return a + b; }
 
 vec3 operator * (float a, vec3 v) { return v3(a * v.x, a * v.y, a * v.z); }
 
@@ -170,12 +171,6 @@ mat3 operator * (mat3 a, mat3 b) {
         a * b.r3
     );
     return m3_transpose(result);
-}
-
-mat3 operator *= (mat3 a, mat3 b) {
-    // a *= b;
-    // a = b * a;
-    return b * a;
 }
 
 mat3 m3_inverse(mat3 m) {
