@@ -135,7 +135,7 @@ vec2 v2(float x) { return v2(x, x); }
 vec2 operator + (vec2 a, vec2 b)  { return v2_add(a, b); }
 vec2 operator - (vec2 a, vec2 b)  { return v2_sub(a, b); }
 vec2 operator * (float a, vec2 v) { return v2(a * v.x, a * v.y); }
-vec2 operator += (vec2 a, vec2 b) { return a + b; }
+// vec2 operator += (vec2 a, vec2 b) { return a + b; }  // TODO: fix this
 
 vec3 operator * (float a, vec3 v) { return v3(a * v.x, a * v.y, a * v.z); }
 

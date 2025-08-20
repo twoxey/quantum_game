@@ -24,15 +24,11 @@ typedef struct texture {
     int w, h;
 } texture, image;
 
-typedef struct font {
-    float size;
-    texture tex;
-    void* font_data;
-} font;
+typedef struct font font;
 
 struct font_quad {
+    int texture;
     vec2 p_min, p_max; // quad
-    vec4 tex_coord;
     vec2 p_next; // position of next char
 };
 
@@ -45,7 +41,7 @@ struct Asset {
     string name;
     union {
         image i;
-        font f;
+        font* f;
     };
 };
 
@@ -59,10 +55,10 @@ typedef struct game_inputs {
 #define FN_get_random(fn_name) void* fn_name(size_t num_bytes)
 typedef FN_get_random(fn_get_random);
 
-#define FN_get_asset(fn_name) Asset* fn_name(Asset_Type type, const char* name, void* params)
+#define FN_get_asset(fn_name) Asset* fn_name(Asset_Type type, const char* name)
 typedef FN_get_asset(fn_get_asset);
 
-#define FN_font_get_quad(fn_name) font_quad fn_name(font f, char c, vec2 pos)
+#define FN_font_get_quad(fn_name) font_quad fn_name(font* f, uint32_t codep, float size)
 typedef FN_font_get_quad(fn_font_get_quad);
 
 #define FN_on_load(fn_name) void fn_name(game_data* data)

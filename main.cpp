@@ -115,68 +115,97 @@ defer:
 // Font
 //
 
-// printable ascii chars
-#define FONT_CHAR_START ' '
-#define FONT_CHAR_END '~'
-#define FONT_BACKED_CHAR_COUNT (FONT_CHAR_END-FONT_CHAR_START)
+#define MAX_LOADED_CHAR_COUNT 200
+#define LOAD_CHAR_SIZE 128  // must be power of 2
 
-#define FONT_BITMAP_W 512
-#define FONT_BITMAP_H 512
-font load_font(const char* file_name, float font_size) {
-    font f = {};
+struct loaded_char {
+    uint32_t codep;
+    uint32_t texture;
+    float xoff, yoff, xadvance;
+};
 
-    buffer font_data = read_entire_file_and_null_terminate(file_name);
-    if (!font_data.len) return f;
+struct font {
+    stbtt_fontinfo info;
+    buffer data;
+    int loaded_char_count;
+    loaded_char chars[MAX_LOADED_CHAR_COUNT];
+};
 
-    stbtt_bakedchar* font_backed_data = (stbtt_bakedchar*)malloc(sizeof(stbtt_bakedchar)*FONT_BACKED_CHAR_COUNT);
+font* load_font(const char* file_name) {
+    buffer buff = read_entire_file_and_null_terminate(file_name);
+    if (!buff.len) return NULL;
 
-    unsigned char temp_bitmap[FONT_BITMAP_W*FONT_BITMAP_H];
-    int ret = stbtt_BakeFontBitmap((unsigned char*)font_data.ptr, 0, font_size, temp_bitmap, FONT_BITMAP_W, FONT_BITMAP_H, FONT_CHAR_START, FONT_BACKED_CHAR_COUNT, font_backed_data);
-    free(font_data.ptr);
-
-    if (ret == 0) goto error;
-    else if (ret < 0) {
-        fprintf(stderr, "Warning: fonts not fit entirely, ret: %d\n", ret);
+    unsigned char* fontdata = (unsigned char*)buff.ptr;
+    stbtt_fontinfo info;
+    int success = stbtt_InitFont(&info, fontdata, stbtt_GetFontOffsetForIndex(fontdata, 0));
+    if (!success) {
+        free(buff.ptr);
+        return NULL;
     }
 
-    GLuint texid;
-    glGenTextures(1, &texid);
-    if (!texid) {
-        fprintf(stderr, "Error: failed to gen tex id for font\n");
-        goto error;
-    }
-    glBindTexture(GL_TEXTURE_2D, texid);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, FONT_BITMAP_W, FONT_BITMAP_H, 0, GL_RED, GL_UNSIGNED_BYTE, temp_bitmap);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    font* f = (font*)malloc(sizeof(font));
+    assert(f);
 
-    f.tex.id = texid;
-    f.tex.w = FONT_BITMAP_W;
-    f.tex.h = FONT_BITMAP_H;
-    f.size = font_size;
-    f.font_data = font_backed_data;
-
-    printf("loaded font: %s, size: %f\n", file_name, font_size);
-
-    return f;
-
-error:
-    free(font_backed_data);
-
+    f->info = info;
+    f->data = buff;
+    f->loaded_char_count = 0;
     return f;
 }
 
-FN_font_get_quad(font_get_quad) {
-    font_quad result = {};
-    stbtt_aligned_quad q;
-    stbtt_GetBakedQuad((stbtt_bakedchar*)f.font_data, f.tex.w, f.tex.h, c - FONT_CHAR_START, &pos.x, &pos.y, &q, true);
+void unload_font(font* f) {
+    free(f->data.ptr);
+    free(f);
+}
 
-    result.p_min = v2(q.x0, q.y0);
-    result.p_max = v2(q.x1, q.y1);
-    result.tex_coord = v4(q.s0, q.t0, q.s1, q.t1);
-    result.p_next = pos;
+FN_font_get_quad(font_get_quad) {
+    loaded_char* chardata = NULL;
+    for (int i = 0; i < f->loaded_char_count; ++i) {
+        if (f->chars[i].codep == codep) {
+            chardata = &f->chars[i];
+        }
+    }
+
+    if (!chardata) {
+        assert(f->loaded_char_count < MAX_LOADED_CHAR_COUNT);
+        chardata = &f->chars[f->loaded_char_count++];
+
+        float scale = stbtt_ScaleForPixelHeight(&f->info, LOAD_CHAR_SIZE);
+
+        int advanceWidth, leftSideBearing;
+        stbtt_GetCodepointHMetrics(&f->info, codep, &advanceWidth, &leftSideBearing);
+
+        chardata->codep = codep;
+        chardata->texture = 0;
+        chardata->xoff = leftSideBearing * scale;
+        chardata->xadvance = advanceWidth * scale;
+
+        int ix0, iy0, ix1, iy1;
+        stbtt_GetCodepointBitmapBox(&f->info, codep, scale, scale, &ix0, &iy0, &ix1, &iy1);
+        if (ix1-ix0 > 0 && iy1-iy0 > 0) {
+            unsigned char bitmap[LOAD_CHAR_SIZE*LOAD_CHAR_SIZE];
+            stbtt_MakeCodepointBitmap(&f->info, bitmap, LOAD_CHAR_SIZE, LOAD_CHAR_SIZE, LOAD_CHAR_SIZE, scale, scale, codep);
+
+            GLuint tex;
+            glGenTextures(1, &tex);
+            glBindTexture(GL_TEXTURE_2D, tex);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, LOAD_CHAR_SIZE, LOAD_CHAR_SIZE, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+            chardata->texture = tex;
+            chardata->yoff = iy0;
+        }
+
+        // printf("loaded char count: %d\n", font->loaded_char_count);
+        // printf("x0: %d, y0: %d, x1: %d, y1: %d\n", ix0, iy0, ix1, iy1);
+    }
+
+    float scale = size / LOAD_CHAR_SIZE;
+    font_quad result;
+    result.texture = chardata->texture;
+    result.p_min = scale * v2(chardata->xoff, chardata->yoff);
+    result.p_max = result.p_min + v2(size);
+    result.p_next = v2(chardata->xadvance * scale, 0);
 
     return result;
 }
@@ -257,9 +286,8 @@ FN_get_asset(get_asset) {
         } break;
 
         case Asset_Font: {
-            float size = *(float*)&params;
-            font f = load_font(file_path.ptr, size);
-            if (f.tex.id) {
+            font* f = load_font(file_path.ptr);
+            if (f) {
                 Asset* a = push_asset(type, name);
                 a->f = f;
                 return a;

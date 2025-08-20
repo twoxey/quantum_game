@@ -153,10 +153,6 @@ FN_push_quad(push_quad) {
 
     vec2 uv0 = v2(0);
     vec2 uv1 = v2(1);
-    if (type == QUAD_char) {
-        uv0 = params.st;
-        uv1 = params.pq;
-    }
     vertex[0] = {uv0, c0};
     vertex[1] = {v2(uv1.s, uv0.t), c1};
     vertex[2] = {v2(uv0.s, uv1.t), c2};

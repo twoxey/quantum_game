@@ -1,5 +1,5 @@
 #include "utils.h"
-
+#include "utf8.h"
 #include "draw.cpp"
 
 static game_data* game;
@@ -17,13 +17,13 @@ rgba32 Color(float r, float g, float b, float a) {
 }
 
 image Image(const char* file_name) {
-    Asset* a = game->get_asset(Asset_Image, file_name, 0);
+    Asset* a = game->get_asset(Asset_Image, file_name);
     assert(a);
     return a->i;
 }
 
-font Font(const char* file_name, float size) {
-    Asset* a = game->get_asset(Asset_Font, file_name, *(void**)&size);
+font* Font(const char* file_name) {
+    Asset* a = game->get_asset(Asset_Font, file_name);
     assert(a);
     return a->f;
 }
@@ -123,17 +123,16 @@ void draw_image(float x, float y, float scale_factor, image img) {
     push_quad(QUAD_image, transform, img.id, {}, {}, {}, {}, {});
 }
 
-void draw_text(const char* text, float x, float y, float size, rgba32 c, font f) {
-    float scale_factor = size / f.size;
-    vec2 pos = v2(0);
-    for (char ch; (ch = *text); ++text) {
-        font_quad q = game->font_get_quad(f, ch, pos);
-        mat3 transform = m3_translation(x, y) *
-                         m3_scale(v2(scale_factor)) *
-                         m3_translation(0.5 * (q.p_min + q.p_max)) *
+void draw_text(const char* text, float x, float y, float size, rgba32 c, font* f) {
+    UTF8_Decoder dec = utf8_decode(text);
+    vec2 pos = v2(x, y);
+    for (uint32_t codep; (codep = utf8_next(&dec));) {
+        font_quad q = game->font_get_quad(f, codep, size);
+        mat3 transform = m3_translation(pos) *
+                         m3_translation(.5 * (q.p_min + q.p_max)) *
                          m3_scale(q.p_max - q.p_min);
-        push_quad(QUAD_char, transform, f.tex.id, c, c, c, c, q.tex_coord);
-        pos = q.p_next;
+        push_quad(QUAD_char, transform, q.texture, c, c, c, c, {});
+        pos = pos + q.p_next;
     }
 }
 

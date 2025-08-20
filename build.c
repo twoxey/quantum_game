@@ -313,7 +313,7 @@ int main(int argc, char* argv[]) {
     if (err) return 1;
 
     err = run_build_command("g++ -Wall -Wextra -shared -o %target dynamic.cpp", out_path"/dynamic.dll",
-                                "dynamic.cpp", "draw.cpp", "utils.h", "math_helper.h");
+                                "dynamic.cpp", "draw.cpp", "utils.h", "math_helper.h", "utf8.h");
     if (err) return 1;
 
     return 0;
