@@ -3,8 +3,17 @@ static float global_time;
                                  !last_t || global_time > last_t + (_interval); \
                                  last_t = global_time)
 
+struct rect { vec2 min, max; };
+
+rect RectWithPosAndSize(float x, float y, float w, float h) {
+    return rect {
+        .min = { x, y },
+        .max = { x + w, y + h },
+    };
+}
+
 rgba32 Color(float r, float g, float b, float a = 1);
-font Font(const char* file_name, float size = 50);
+font* Font(const char* file_name);
 image Image(const char* file_name);
 
 float random_float_between_0_and_1();
@@ -24,29 +33,11 @@ void draw_arc(float x, float y, float r, float min_angel, float max_angle, float
 void stroke_rect(float x, float y, float w, float h, float width, rgba32 color);
 void stroke_circle(float x, float y, float r, float width, rgba32 color);
 void draw_image(float x, float y, float scale_factor, image img);
-void draw_text(const char* text, float x, float y, float size, rgba32 c, font font);
+void draw_text(const char* text, float x, float y, float size, rgba32 c, font* font);
 
-//
-// Game code
-//
-
-struct FPS_Counter {
-    int fps;
-    int frame_time_idx;
-    float frame_times[10];
-};
-
-void update(FPS_Counter* c, float dt) {
-    c->frame_times[c->frame_time_idx++] = dt;
-    c->frame_time_idx %= ARRAY_LEN(c->frame_times);
-    float acc = 0;
-    for (size_t i = 0; i < ARRAY_LEN(c->frame_times); ++i) {
-        acc += c->frame_times[i];
-    }
-    c->fps = 1.0 / (acc / ARRAY_LEN(c->frame_times));
+void draw_rect(rect r, rgba32 color) {
+    draw_rect(r.min.x, r.min.y, r.max.x - r.min.x, r.max.y - r.min.y, color);
 }
-
-static FPS_Counter fps_counter;
 
 float v2_len_sqr(vec2 v) {
     return v.x * v.x + v.y * v.y;
@@ -54,6 +45,10 @@ float v2_len_sqr(vec2 v) {
 
 bool point_in_rect(float x, float y, float min_x, float min_y, float max_x, float max_y) {
     return min_x < x && x < max_x && min_y < y && y < max_y;
+}
+
+bool point_in_rect(vec2 p, rect r) {
+    return point_in_rect(p.x, p.y, r.min.x, r.min.y, r.max.x, r.max.y);
 }
 
 bool point_in_circle(vec2 point, vec2 center, float radius) {
@@ -79,6 +74,28 @@ float length(vec2 v) {
     return hypotf(v.x, v.y);
 }
 
+//
+// Game code
+//
+
+struct FPS_Counter {
+    int fps;
+    int frame_time_idx;
+    float frame_times[10];
+};
+
+void update(FPS_Counter* c, float dt) {
+    c->frame_times[c->frame_time_idx++] = dt;
+    c->frame_time_idx %= ARRAY_LEN(c->frame_times);
+    float acc = 0;
+    for (size_t i = 0; i < ARRAY_LEN(c->frame_times); ++i) {
+        acc += c->frame_times[i];
+    }
+    c->fps = 1.0 / (acc / ARRAY_LEN(c->frame_times));
+}
+
+static FPS_Counter fps_counter;
+
 #include "stdarg.h"
 static float text_y = 0;
 void println(const char *fmt, ...) {
@@ -87,98 +104,101 @@ void println(const char *fmt, ...) {
     va_start(args, fmt);
     char text_buff[128];
     vsnprintf(text_buff, sizeof(text_buff), fmt, args);
-    draw_text(text_buff, 0, text_y += text_size, text_size, Color(1, 1, 1), Font("Lato-Regular.ttf"));
+    draw_text(text_buff, 0, text_y += text_size, text_size, Color(1, 1, 1), Font("msyh.ttc"));
     va_end(args);
 }
 
-struct Particle {
-    vec2 pos;
-    float pos_max_radius;
-    float radius;
-
-    // animation
-    bool mouse_is_close;
-    vec2 a_pos;
-    float dir;
-
-    // particle1
-    Particle* parent;
-    vec2 d_pos;
+enum GameScreen {
+    SCREEN_Home,
+    SCREEN_Explore,
+    SCREEN_Compose,
+    SCREEN_Collect,
 };
 
-void update_particle(Particle* p, float dt, vec2 mouse_p, bool mouse_down) {
-    bool close =  point_in_circle(mouse_p, to_screen_space(p->pos), p->pos_max_radius);
-    p->mouse_is_close = close;
-    float d_dir = dt * 5 * (random_float_between_0_and_1());
-    if (close) d_dir *= 0.2;
-    p->dir += d_dir;
-    vec2 move = dt * 200 * v2(cosf(p->dir), sinf(p->dir));
-    vec2 diff = p->a_pos - p->pos;
-    float dist = length(diff);
-    vec2 attract = dt * -100 * diff;
-    move = move + dist / p->pos_max_radius * attract;
-    p->a_pos = p->a_pos + move;
+const int WIDTH = 1200;
+const int HEIGHT = 700;
+GameScreen current_screen = SCREEN_Home;
+bool mouse_was_down = false;
+vec2 mouse_pos;
+bool mouse_pressed;
+bool mouse_released;
+font* button_font;
 
-    bool inside = point_in_circle(mouse_p, to_screen_space(p->a_pos), p->radius);
-    rgba32 color = inside ? (mouse_down ? Color(1, 1, 0)
-                                        : Color(1, 0, 0))
-                          : Color(0, 0, 1);
-    draw_circle(p->a_pos.x, p->a_pos.y, p->radius, color);
-}
-
-void update_particle1(Particle* p, float dt, vec2 mouse_p, bool mouse_down) {
-    bool inside = point_in_circle(mouse_p, to_screen_space(p->a_pos), p->radius);
-    bool clicked = inside && mouse_down;
-    if (p->parent) {
-        float d_dir = dt * M_PI * 1.5;
-        if (!clicked && p->parent->mouse_is_close) d_dir *= 0.1;
-        p->dir += d_dir;
-        vec2 offset = p->pos_max_radius * v2(cosf(p->dir), sinf(p->dir));
-        vec2 new_pos = p->parent->a_pos + offset;
-        vec2 d_pos = new_pos - p->a_pos;
-        if (clicked) {
-            p->d_pos = d_pos;
-            p->parent = 0;
-        } else {
-            p->a_pos = new_pos;
+bool draw_button(rect r, rgba32 color, const char* text) {
+    if (point_in_rect(mouse_pos, r)) {
+        draw_rect(r, color);
+        if (mouse_pressed) {
+            return true;
         }
     } else {
-        p->a_pos = p->a_pos + p->d_pos;
+        color.r *= 0.8;
+        color.g *= 0.8;
+        color.b *= 0.8;
+        draw_rect(r, color);
     }
-    rgba32 color = inside ? Color(0, 1, 0) : Color(1, 1, 0);
-    draw_circle(p->a_pos.x, p->a_pos.y, p->radius, color);
+    float h = r.max.y - r.min.y;
+    draw_text(text, r.min.x, r.min.y + h*.6, h*.5, Color(1, 1, 1), button_font);
+    return false;
 }
 
-static Particle p0;
-static Particle p1;
-static Particle p2;
-
 void on_load() {
-    p0.pos_max_radius = 100;
-    p0.radius = 15;
-
-    p1.pos_max_radius = 40;
-    p1.radius = 10;
-    p1.parent = &p0;
-
-    p2 = p1;
-    p2.dir += M_PI;
+    button_font = Font("msyh.ttc");
 }
 
 void draw(float dt, int window_width, int window_height, game_inputs inputs) {
     update(&fps_counter, dt);
     text_y = 0;
-    vec2 mouse_p = v2(inputs.mouse_x, inputs.mouse_y);
+    mouse_pos = v2(inputs.mouse_x, inputs.mouse_y);
 
     println("FPS: %d", fps_counter.fps);
+    println("W: %d, H: %d", window_width, window_height);
 
-    push_transform(m3_translation(window_width / 2, window_height / 2));
-    update_particle(&p0, dt, mouse_p, inputs.mouse_down);
-    update_particle1(&p1, dt, mouse_p, inputs.mouse_down);
-    update_particle1(&p2, dt, mouse_p, inputs.mouse_down);
-    // stroke_circle(p0.pos.x, p0.pos.y, max_dist, 2, Color(1, 1, 1));
-    pop_transform();
+    mouse_pressed = !mouse_was_down && inputs.mouse_down;
+    mouse_released = mouse_was_down && !inputs.mouse_down;
+    mouse_was_down = inputs.mouse_down;
 
-    // println("m_x: %f, m_y: %f", move.x, move.y);
-    println("a_x: %.2f, a_y: %.2f", p0.a_pos.x, p0.a_pos.y);
+    stroke_rect(0, 0, WIDTH, HEIGHT, 3, Color(1, 1, 1));
+
+    if (current_screen == SCREEN_Home) {
+        int button_width = WIDTH * 0.25;
+        int button_height = HEIGHT * 0.25;
+
+        rect button1 = RectWithPosAndSize(WIDTH * 0.6, HEIGHT / 6.0 - button_height * 0.5, button_width, button_height);
+        if (draw_button(button1, Color(1, 0.2, 0.3), "知识探索")) {
+            current_screen = SCREEN_Explore;
+        }
+        
+        rect button2 = RectWithPosAndSize(WIDTH * 0.6, HEIGHT / 2.0 - button_height * 0.5, button_width, button_height);
+        if (draw_button(button2, Color(.2, 0.8, 0.3), "合成探索")) {
+            current_screen = SCREEN_Compose;
+        }
+
+        rect button3 = RectWithPosAndSize(WIDTH * 0.6, HEIGHT / 6.0 * 5.0 - button_height * 0.5, button_width, button_height);
+        if (draw_button(button3, Color(1, .6, 0.2), "收集")) {
+            current_screen = SCREEN_Collect;
+        }
+
+    } else if (current_screen == SCREEN_Explore) {
+        println("探索 !!!!");
+        rect explain_button = RectWithPosAndSize(100, 100, 50, 50);
+
+        static bool explain_opened = false;
+        if (draw_button(explain_button, Color(.2, .3, .6), explain_opened ? "关闭" : "打开")) {
+            explain_opened = !explain_opened;
+        }
+        if (explain_opened) {
+            stroke_rect(100, 200, 300, 200, 5, Color(1, 1, 1));
+        }
+    } else if (current_screen == SCREEN_Compose) {
+        println("合成 !!!!");
+         if (mouse_pressed) {
+            current_screen = SCREEN_Home;
+        }
+    } else if (current_screen == SCREEN_Collect) {
+        println("收集 !!!!");
+        if (mouse_pressed) {
+            current_screen = SCREEN_Home;
+        }
+    }
+
 }
