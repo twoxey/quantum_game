@@ -180,15 +180,35 @@ void draw(float dt, int window_width, int window_height, game_inputs inputs) {
 
     } else if (current_screen == SCREEN_Explore) {
         println("探索 !!!!");
-        rect explain_button = RectWithPosAndSize(100, 100, 50, 50);
+
+        static float x = 100;
+        static float y = 100;
+        static float offx;
+        static float offy;
+        
+        static bool dragged = false;
+        rect explain_button = RectWithPosAndSize(x, y, 50, 50);
+
+        if (!dragged && point_in_rect(mouse_pos, explain_button) && mouse_pressed) {
+            dragged = true;
+            offx = mouse_pos.x - x;
+            offy = mouse_pos.y - y;
+        }
+
+        if (dragged) {
+            x = mouse_pos.x - offx;
+            y = mouse_pos.y - offy;
+
+            if (mouse_released) {
+                dragged = false;
+            }
+        }
 
         static bool explain_opened = false;
         if (draw_button(explain_button, Color(.2, .3, .6), explain_opened ? "关闭" : "打开")) {
             explain_opened = !explain_opened;
         }
-        if (explain_opened) {
-            stroke_rect(100, 200, 300, 200, 5, Color(1, 1, 1));
-        }
+       
     } else if (current_screen == SCREEN_Compose) {
         println("合成 !!!!");
          if (mouse_pressed) {
