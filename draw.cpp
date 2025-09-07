@@ -115,6 +115,38 @@ enum GameScreen {
     SCREEN_Collect,
 };
 
+struct Draggable {
+    vec2 pos;
+    vec2 mouse_off;
+    bool dragged;
+};
+
+enum EntityType {
+    ENTITY_BALL,
+    ENTITY_BUTTON,
+};
+
+struct Entity {
+    EntityType type;
+    const char* text;
+
+    // ball
+    float radius;
+    Draggable drag;
+
+    // button
+    rect r;
+    rgba32 color;
+};
+
+Draggable make_draggable(float x, float y) {
+    Draggable d;
+    d.pos = v2(x, y);
+    d.mouse_off = v2(0, 0);
+    d.dragged = false;
+    return d;
+}
+
 const int WIDTH = 1200;
 const int HEIGHT = 700;
 GameScreen current_screen = SCREEN_Home;
@@ -123,6 +155,38 @@ vec2 mouse_pos;
 bool mouse_pressed;
 bool mouse_released;
 font* button_font;
+Entity entities[1000];
+int entity_count = 0;
+
+void add_button_entity(rect r, rgba32 color, const char* text) {
+    if (entity_count >= (int)ARRAY_LEN(entities)) {
+        printf("Error: Max entity count!!!!\n");
+        return;
+    }
+
+    Entity* e = &entities[entity_count];
+    entity_count += 1;
+
+    e->type = ENTITY_BUTTON;
+    e->r = r;
+    e->color = color;
+    e->text = text;
+}
+
+void add_ball_entity(float x, float y, float r, const char* text) {
+    if (entity_count >= (int)ARRAY_LEN(entities)) {
+        printf("Error: Max entity count!!!!\n");
+        return;
+    }
+
+    Entity* e = &entities[entity_count];
+    entity_count += 1;
+
+    e->type = ENTITY_BALL;
+    e->radius = r;
+    e->drag = make_draggable(x, y);
+    e->text = text;
+}
 
 bool draw_button(rect r, rgba32 color, const char* text) {
     if (point_in_rect(mouse_pos, r)) {
@@ -139,6 +203,21 @@ bool draw_button(rect r, rgba32 color, const char* text) {
     float h = r.max.y - r.min.y;
     draw_text(text, r.min.x, r.min.y + h*.6, h*.5, Color(1, 1, 1), button_font);
     return false;
+}
+
+void draggable_ball(Draggable* d, float r, const char* text) {
+    if (!d->dragged && point_in_circle(mouse_pos, d->pos, r) && mouse_pressed) {
+        d->dragged = true;
+        d->mouse_off = mouse_pos - d->pos;
+    }
+    if (d->dragged) {
+        d->pos = mouse_pos - d->mouse_off;
+        if (mouse_released) {
+            d->dragged = false;
+        }
+    }
+    draw_circle(d->pos.x, d->pos.y, r, Color(1, 0, 0));
+    draw_text(text, d->pos.x, d->pos.y, r*2, Color(1, 1, 1), button_font);
 }
 
 void on_load() {
@@ -185,8 +264,8 @@ void draw(float dt, int window_width, int window_height, game_inputs inputs) {
         static float y = 100;
         static float offx;
         static float offy;
-        
         static bool dragged = false;
+
         rect explain_button = RectWithPosAndSize(x, y, 50, 50);
 
         if (!dragged && point_in_rect(mouse_pos, explain_button) && mouse_pressed) {
@@ -211,9 +290,26 @@ void draw(float dt, int window_width, int window_height, game_inputs inputs) {
        
     } else if (current_screen == SCREEN_Compose) {
         println("合成 !!!!");
-         if (mouse_pressed) {
-            current_screen = SCREEN_Home;
+        // if (mouse_pressed) {
+        // }
+
+        if (draw_button(RectWithPosAndSize(100, 100, 200, 200), Color(0.2, 0.1, 0.7), "New")) {
+            add_ball_entity(100, 100, 50, "abc");
         }
+
+        if (draw_button(RectWithPosAndSize(500, 100, 300, 200), Color(0.2, 0.1, 0.7), "delete")) {
+            entity_count = 0;
+        }
+
+        for (int i = 0; i < entity_count; ++i) {
+            Entity* e = &entities[i];
+            if (e->type == ENTITY_BALL) {
+                draggable_ball(&e->drag, 20, "abc");
+            } else if (e->type == ENTITY_BUTTON) {
+                draw_button(e->r, e->color, e->text);
+            }
+        }
+
     } else if (current_screen == SCREEN_Collect) {
         println("收集 !!!!");
         if (mouse_pressed) {
